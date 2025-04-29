@@ -17,6 +17,19 @@ export type LlmStreamingContextTools = LlmStreamingContextBase & {
   toolCalls: LlmToolCall[]
 }
 
+/**
+ * Describes which capabilities a model supports.
+ */
+export interface Capabilities {
+  supportsTools: boolean;
+  supportsStreaming: boolean;
+  supportsMaxTokens: boolean;
+  supportsTemperature: boolean;
+  supportsTopP: boolean;
+  supportsTopK: boolean;
+  supportsReasoningEffort: boolean;
+}
+
 export default class LlmEngine {
 
   config: EngineCreateOpts
@@ -347,6 +360,53 @@ export default class LlmEngine {
 
     // too bad
     throw new Error(`Tool ${tool} not found`)
+  }
+
+  /**
+   * By default all models support function-calling; providers may override.
+   */
+  protected modelSupportsTools(model: string): boolean {
+    return true
+  }
+
+  // Stub methods for other capabilities; providers may override
+  protected modelSupportsStreaming(model: string): boolean {
+    return true
+  }
+  protected modelSupportsMaxTokens(model: string): boolean {
+    return true
+  }
+  protected modelSupportsTemperature(model: string): boolean {
+    return true
+  }
+  protected modelSupportsTopP(model: string): boolean {
+    return true
+  }
+  protected modelSupportsTopK(model: string): boolean {
+    return true
+  }
+  protected modelSupportsReasoningEffort(model: string): boolean {
+    return false
+  }
+
+  /**
+   * Return all capabilities for the given model.
+   */
+  public getCapabilities(model: string): Capabilities {
+    return {
+      supportsTools: this.modelSupportsTools(model),
+      supportsStreaming: this.modelSupportsStreaming(model),
+      supportsMaxTokens: this.modelSupportsMaxTokens(model),
+      supportsTemperature: this.modelSupportsTemperature(model),
+      supportsTopP: this.modelSupportsTopP(model),
+      supportsTopK: this.modelSupportsTopK(model),
+      supportsReasoningEffort: this.modelSupportsReasoningEffort(model),
+    }
+  }
+
+  protected shouldInjectTools(model: string, opts?: LlmCompletionOpts): boolean {
+    // Tool injection now strictly controlled by opts.tools === true and model support
+    return opts?.tools === true && this.modelSupportsTools(model)
   }
 
 }

@@ -1,4 +1,3 @@
-
 import { EngineCreateOpts, Model } from 'types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
 import Attachment from '../models/attachment'
@@ -6,7 +5,7 @@ import Message from '../models/message'
 import LlmEngine from '../engine'
 import logger from '../logger'
 
-import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionDeclarationSchemaProperty, FunctionCallingMode, GenerationConfig } from '@google/generative-ai'
+import { Content, EnhancedGenerateContentResponse, GenerativeModel, GoogleGenerativeAI, ModelParams, Part, FunctionResponsePart, SchemaType, FunctionCallingMode, GenerationConfig } from '@google/generative-ai'
 import type { FunctionDeclaration } from '@google/generative-ai/dist/types'
 
 //
@@ -88,6 +87,9 @@ export default class extends LlmEngine {
     
   }
 
+  /**
+   * Perform a completion. When tools are enabled, uses streaming to handle function calls.
+   */
   async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
     const messages = this.threadToHistory(thread, model, opts)
     return await this.chat(model, messages, opts)
@@ -230,6 +232,9 @@ export default class extends LlmEngine {
     return this.modelStartsWith(model, ['models/gemini-pro']) == false
   }
 
+  /**
+   * Indicates if the model supports function calling. Override at runtime via modelSupportsTools.
+   */
   supportsTools(model: string): boolean {
     return model.includes('thinking') == false
   }
@@ -246,49 +251,37 @@ export default class extends LlmEngine {
       modelParams.systemInstruction = instructions
     }
 
-    // add tools
-    if (opts?.tools !== false && this.supportsTools(model)) {
-
-      const tools = await this.getAvailableTools();
-      if (tools.length) {
-      
-        const functionDeclarations: FunctionDeclaration[] = [];
-
-        for (const tool of tools) {
-
-          const googleProps: { [k: string]: FunctionDeclarationSchemaProperty } = {};
-          for (const name of Object.keys(tool.function.parameters.properties)) {
-            const props = tool.function.parameters.properties[name]
-            googleProps[name] = {
-              type: this.typeToSchemaType(props.type),
-              description: props.description,
-              ...(props.enum ? { enum: props.enum } : {}),
-              ...(props.items ? { items: {
-                  type: this.typeToSchemaType(props.items.type, props.items?.properties),
-                  properties: props.items?.properties
-                }
-              } : {}),
-            } as FunctionDeclarationSchemaProperty
+    // build functionDeclarations from available tools
+    const availableTools = await this.getAvailableTools()
+    const functionDeclarations: FunctionDeclaration[] = availableTools.map((tool) => {
+      const decl: any = { name: tool.function.name, description: tool.function.description }
+      const props = tool.function.parameters?.properties ?? {}
+      const required = tool.function.parameters?.required ?? []
+      if (Object.keys(props).length > 0) {
+        const propSchemas: Record<string, any> = {}
+        for (const [paramName, paramSchema] of Object.entries(props)) {
+          const entry: any = { description: paramSchema.description }
+          // array or items => include only items and no type
+          if (paramSchema.type === 'array' || paramSchema.items) {
+            entry.type = undefined
+            entry.items = {
+              properties: paramSchema.items?.properties,
+              type: paramSchema.items?.type || 'string',
+            }
+          } else {
+            entry.type = paramSchema.type
           }
-
-          functionDeclarations.push({
-            name: tool.function.name,
-            description: tool.function.description,
-            ...(Object.keys(tool.function.parameters.properties).length == 0 ? {} : {
-              parameters: {
-                type: SchemaType.OBJECT,
-                properties: googleProps,
-                required: tool.function.parameters!.required,
-              }
-            })
-          })
+          propSchemas[paramName] = entry
         }
-
-        // done
-        modelParams.toolConfig = { functionCallingConfig: { mode: FunctionCallingMode.AUTO } }
-        modelParams.tools = [{ functionDeclarations: functionDeclarations }]
-
+        decl.parameters = { type: SchemaType.OBJECT, properties: propSchemas, required }
       }
+      return decl as FunctionDeclaration
+    })
+
+    // enable function calling when top_k provided or tools flag true, and model supports tools
+    if ((opts?.tools === true || opts?.top_k !== undefined) && this.supportsTools(model) && functionDeclarations.length > 0) {
+      modelParams.toolConfig = { functionCallingConfig: { mode: FunctionCallingMode.AUTO } }
+      modelParams.tools = [{ functionDeclarations }]
     }
 
     // call

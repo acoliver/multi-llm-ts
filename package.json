@@ -13,11 +13,14 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsup",
-    "lint": "eslint '**/*.ts'",
-    "test": "vitest",
-    "check": "npm run lint && npx vitest --run && npm run build",
-    "testui": "vitest --ui --coverage.enabled=true",
+    "prepare": "husky install",
+    "build": "tsup src/index.ts --dts --format esm,cjs --splitting --clean",
+    "build:watch": "npm run build -- --watch",
+    "lint": "eslint . --ext .ts",
+    "test": "vitest run",
+    "testui": "vitest --ui",
+    "check": "eslint . --ext .d.ts,.ts && npm test -- --run && npm run build",
+    "prepublishOnly": "npm run build",
     "testreal": "REAL_API=1 vitest tests/unit/engine_real_apis.test.ts",
     "example": "tsx ./example/index.ts"
   },

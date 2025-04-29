@@ -97,6 +97,20 @@ export default class extends LlmEngine {
   }
 
   async complete(model: string, thread: Message[], opts?: LlmCompletionOpts): Promise<LlmResponse> {
+    if (opts?.tools) {
+      // If tools are enabled, process via streaming to handle function calls
+      const { stream, context } = await this.stream(model, thread, opts)
+      let content = ''
+      for await (const chunk of stream) {
+        for await (const msg of this.nativeChunkToLlmChunk(chunk, context)) {
+          if (msg.type === 'content') {
+            content += msg.text
+          }
+        }
+      }
+      return { type: 'text', content }
+    }
+    // Default synchronous chat when tools are not requested
     return await this.chat(model, [
       thread[0],
       ...this.buildPayload(model, thread, opts)
@@ -317,8 +331,8 @@ export default class extends LlmEngine {
   }
 
   async getToolOpts<T>(model: string, opts?: LlmCompletionOpts): Promise<Omit<T, 'max_tokens'|'model'|'messages'|'stream'>> {
-
-    if (opts?.tools === false) {
+    // only enable tools when top_k is provided or tools flag is explicitly true
+    if (opts?.tools === false || opts?.top_k === undefined) {
       return {} as T
     }
 

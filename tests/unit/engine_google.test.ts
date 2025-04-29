@@ -1,4 +1,3 @@
-
 import { EngineCreateOpts } from '../../src/types/index'
 import { vi, beforeEach, expect, test } from 'vitest'
 import { Plugin1, Plugin2, Plugin3 } from '../mocks/plugins'

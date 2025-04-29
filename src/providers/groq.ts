@@ -1,4 +1,3 @@
-
 import { EngineCreateOpts, Model } from 'types/index'
 import { LLmCompletionPayload, LlmChunk, LlmCompletionOpts, LlmResponse, LlmStream, LlmStreamingResponse, LlmToolCall, LlmToolCallInfo } from 'types/llm'
 import Message from '../models/message'
@@ -203,8 +202,8 @@ export default class extends LlmEngine {
 
   async getToolOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
 
-    // disabled?
-    if (opts?.tools === false) {
+    // disable tools when explicitly disabled or top_k not provided, or model doesn't support tools
+    if ((opts?.tools === false || opts?.top_k === undefined) || !this.modelSupportsTools(model)) {
       return {}
     }
 

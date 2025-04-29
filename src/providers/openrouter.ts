@@ -1,6 +1,5 @@
-
 import { EngineCreateOpts, Model } from 'types/index'
-import { LlmRole } from 'types/llm'
+import { LlmRole, LlmCompletionOpts } from 'types/llm'
 import OpenAI from './openai'
 
 //
@@ -52,6 +51,16 @@ export default class extends OpenAI {
 
   protected filterVisionModels(models: Model[]): string[] {
     return models.filter((model) => model.meta.architecture?.modality?.split('-')[0].includes('+image')).map((model) => model.id)
+  }
+
+  // override tool injection: include function-calling when plugins are registered
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async getToolsOpts(_model: string, _opts?: LlmCompletionOpts) {
+    if (!this.plugins.length) {
+      return {} as any
+    }
+    const tools = await this.getAvailableTools()
+    return tools.length ? { tools, tool_choice: 'auto' } : {}
   }
 
 }

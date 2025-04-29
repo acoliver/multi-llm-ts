@@ -6,7 +6,9 @@ export interface ICustomPlugin {
 
 export class Plugin {
 
-  serializeInTools(): boolean {
+  // by default all tools serialize regardless of model
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  serializeInTools(_model?: string): boolean {
     return true
   }
 

@@ -142,7 +142,7 @@ export default class extends LlmEngine {
       model: model,
       messages: thread,
       ...this.getCompletionOpts(model, opts),
-      ...await this.getToolsOpts(model, opts),
+      ...await this.getFunctionCallingOptions(model, opts),
     });
 
     // get choice
@@ -270,7 +270,7 @@ export default class extends LlmEngine {
       model: context.model,
       messages: context.thread,
       ...this.getCompletionOpts(context.model, context.opts),
-      ...await this.getToolsOpts(context.model, context.opts),
+      ...await this.getFunctionCallingOptions(context.model, context.opts),
       stream_options: { include_usage: context.opts.usage || false },
       stream: true,
     })
@@ -291,11 +291,10 @@ export default class extends LlmEngine {
     }
   }
 
-  async getToolsOpts(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
-
-    // check if enabled
-    if (opts?.tools === false || !this.modelSupportsTools(model)) {
-      return {}
+  async getFunctionCallingOptions(model: string, opts?: LlmCompletionOpts): Promise<Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>> {
+    // disable tools only when explicitly disabled or top_k is not provided, or model doesn't support tools
+    if ((opts?.tools === false || opts?.top_k === undefined) || !this.modelSupportsTools(model)) {
+      return {} as Omit<ChatCompletionCreateParamsBase, 'model'|'messages'|'stream'>
     }
 
     // tools
